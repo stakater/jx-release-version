@@ -3,22 +3,24 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/coreos/go-semver/semver"
-	"github.com/google/go-github/github"
-	version "github.com/hashicorp/go-version"
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/coreos/go-semver/semver"
+	"github.com/google/go-github/github"
+	version "github.com/hashicorp/go-version"
 
 	"bufio"
 	"context"
 	"encoding/xml"
 	"flag"
-	"golang.org/x/oauth2"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
+
+	"golang.org/x/oauth2"
 )
 
 type Project struct {
@@ -31,6 +33,7 @@ type config struct {
 	dir          string
 	ghOwner      string
 	ghRepository string
+	versionFile  string
 }
 
 func main() {
@@ -39,6 +42,7 @@ func main() {
 	dir := flag.String("folder", ".", "the folder to look for files that contain a pom.xml or Makfile with the project version to bump")
 	owner := flag.String("gh-owner", "", "a github repository owner if not running from within a git project  e.g. fabric8io")
 	repo := flag.String("gh-repository", "", "a git repository if not running from within a git project  e.g. fabric8")
+	versionFile := flag.String("version-file", "", "a version file to find the version from")
 
 	flag.Parse()
 
@@ -47,6 +51,7 @@ func main() {
 		dir:          *dir,
 		ghOwner:      *owner,
 		ghRepository: *repo,
+		versionFile:  *versionFile,
 	}
 
 	v, err := getNewVersionFromTag(c)
@@ -58,6 +63,21 @@ func main() {
 }
 
 func getVersion(c config) (string, error) {
+	if c.versionFile != "" {
+		vFile, err := ioutil.ReadFile(c.dir + string(filepath.Separator) + c.versionFile)
+		if err == nil {
+			if c.debug {
+				fmt.Println("Found " + c.versionFile)
+			}
+			if string(vFile) != "" {
+				if c.debug {
+					fmt.Printf("existing %v file version %v", c.versionFile, string(vFile))
+				}
+				return string(vFile), nil
+			}
+		}
+	}
+
 	chart, err := ioutil.ReadFile(c.dir + string(filepath.Separator) + "Chart.yaml")
 	if err == nil {
 		if c.debug {
